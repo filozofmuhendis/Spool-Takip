@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spool/parts/spool_detailing.dart';
 
 class ProjectsPage extends StatefulWidget {
   @override
@@ -77,7 +78,31 @@ class ProjectDetailsPage extends StatelessWidget {
             Text("Başlangıç Tarihi: ${project['date']}"),
             SizedBox(height: 32),
             ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SpoolDetailPage(spoolData: {
+                      'spoolNumber': 'SP1234',
+                      'material': 'AISI316',
+                      'diameter': 'DN100',
+                      'weight': '12.4kg',
+                      'barcode': 'SP00123',
+                      'history': [
+                        {'type': 'İmalat', 'date': '2025-05-01', 'person': 'Ahmet Usta'},
+                        {'type': 'Kaynak', 'date': '2025-05-02', 'person': 'Ali Usta'},
+                      ],
+                      'documents': [], // File nesneleri eklenecek
+                      'ek': '2',
+                      'flans': '1',
+                      'manson': '3',
+                      'inch': '42',
+                      'type': 'Argon',
+                      'note': 'Özel kaynak kullanıldı.',
+                    }),
+                  ),
+                );
+              },
               child: Text("Spool Listesini Gör"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF186bfd),
