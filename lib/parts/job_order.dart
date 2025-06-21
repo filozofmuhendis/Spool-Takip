@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+
 class JobOrderPage extends StatefulWidget {
   @override
   _JobOrderPageState createState() => _JobOrderPageState();
@@ -16,23 +19,74 @@ class _JobOrderPageState extends State<JobOrderPage> {
   final TextEditingController _materialController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final List<Map<String, dynamic>> spoolList = [];
+  int? editingIndex;
+
+  Future<void> submitJobOrder() async {
+    final userId = Supabase.instance.client.auth.currentUser!.id;
+
+    // 1. Project kaydı
+    final projectInsert = await Supabase.instance.client.from('projects').insert({
+      'name': _projectController.text,
+      'shipyard': _shipyardController.text,
+      'ship': _shipController.text,
+      'created_by': userId,
+    }).select().single();
+
+    final projectId = projectInsert['id'];
+
+    // 2. Circuit kaydı
+    final circuitInsert = await Supabase.instance.client.from('circuits').insert({
+      'name': _circuitController.text,
+      'project_id': projectId,
+      'created_by': userId,
+    }).select().single();
+
+    final circuitId = circuitInsert['id'];
+
+    // 3. Her bir spool’u kaydet
+    for (var spool in spoolList) {
+      await Supabase.instance.client.from('spools').insert({
+        'circuit_id': circuitId,
+        'spool_number': spool['spoolNumber'],
+        'diameter': spool['diameter'],
+        'material': spool['material'],
+        'weight': spool['weight'],
+        'barcode': spool['barcode'],
+        'created_by': userId,
+      });
+    }
+
+    // 🟢 Kullanıcıya bildirim
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("İş emri başarıyla oluşturuldu")));
+      setState(() {
+        _shipyardController.clear();
+        _shipController.clear();
+        _projectController.clear();
+        _circuitController.clear();
+        spoolList.clear();
+      });
+    }
+  }
+
 
   void addSpool() {
+    final spool = {
+      'spoolNumber': _spoolNumberController.text,
+      'diameter': _diameterController.text,
+      'material': _materialController.text,
+      'weight': _weightController.text,
+      'barcode': "SP${Random().nextInt(99999).toString().padLeft(5, '0')}",
+    };
+
     setState(() {
-      final spoolNumber = _spoolNumberController.text;
-      final diameter = _diameterController.text;
-      final material = _materialController.text;
-      final weight = _weightController.text;
-      final barcode = "SP${Random().nextInt(99999).toString().padLeft(5, '0')}";
-
-      spoolList.add({
-        'spoolNumber': spoolNumber,
-        'diameter': diameter,
-        'material': material,
-        'weight': weight,
-        'barcode': barcode,
-      });
-
+      if (editingIndex != null) {
+        spool['barcode'] = spoolList[editingIndex!]['barcode']; // Barkod aynı kalmalı
+        spoolList[editingIndex!] = spool;
+        editingIndex = null;
+      } else {
+        spoolList.add(spool);
+      }
       _spoolNumberController.clear();
       _diameterController.clear();
       _materialController.clear();
@@ -161,15 +215,41 @@ class _JobOrderPageState extends State<JobOrderPage> {
                   children: [
                     Text("Spool Listesi", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     SizedBox(height: 8),
-                    ...spoolList.map((spool) {
+                    ...spoolList.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final spool = entry.value;
+
                       return Card(
                         elevation: 3,
                         margin: EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           title: Text("Spool No: ${spool['spoolNumber']}"),
-                          subtitle: Text(
-                              "Çap: ${spool['diameter']} - Malzeme: ${spool['material']} - Ağırlık: ${spool['weight']}"),
-                          trailing: Text("Barkod: ${spool['barcode']}"),
+                          subtitle: Text("Çap: ${spool['diameter']} - Malzeme: ${spool['material']} - Ağırlık: ${spool['weight']}"),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit, color: Colors.orange),
+                                onPressed: () {
+                                  setState(() {
+                                    editingIndex = index;
+                                    _spoolNumberController.text = spool['spoolNumber'];
+                                    _diameterController.text = spool['diameter'];
+                                    _materialController.text = spool['material'];
+                                    _weightController.text = spool['weight'];
+                                  });
+                                },
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    spoolList.removeAt(index);
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     }).toList(),
@@ -177,23 +257,9 @@ class _JobOrderPageState extends State<JobOrderPage> {
                 ),
               SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: addSpool,
+                onPressed: submitJobOrder,
                 icon: Icon(Icons.add),
                 label: Text("İş Emrini Oluştur"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF186bfd),
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-              ),
-              SizedBox(height: 24),
-              // Barkod Yazdırma Butonu
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: Icon(Icons.print),
-                label: Text("Barkodları Yazdır"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFF186bfd),
                   padding: EdgeInsets.symmetric(vertical: 16),
