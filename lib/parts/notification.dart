@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:spool/parts/responsive_helper.dart';
 
 class NotificationsPage extends StatefulWidget {
   @override
@@ -44,33 +45,39 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    double padding = ResponsiveHelper.getResponsiveWidth(context, 16);
+    double cardRadius = ResponsiveHelper.getResponsiveWidth(context, 15);
+    double titleFont = ResponsiveHelper.getResponsiveFontSize(context, 18);
+    double subtitleFont = ResponsiveHelper.getResponsiveFontSize(context, 14);
+    double iconSize = ResponsiveHelper.getResponsiveWidth(context, 32);
+    double appBarFont = ResponsiveHelper.getResponsiveFontSize(context, 20);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text("Bildirimler"),
+        title: Text("Bildirimler", style: TextStyle(fontSize: appBarFont)),
         backgroundColor: Color(0xFF186bfd),
       ),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(padding),
         child: ListView.builder(
           itemCount: notifications.length,
           itemBuilder: (context, index) {
             final notification = notifications[index];
             return Card(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(cardRadius),
               ),
               elevation: 5,
-              margin: EdgeInsets.only(bottom: 16),
-              //color: _getNotificationColor(notification['type']).withOpacity(0.1),
+              margin: EdgeInsets.only(bottom: padding),
               child: ListTile(
                 leading: Icon(
                   _getNotificationIcon(notification['type']),
                   color: _getNotificationColor(notification['type']),
-                  size: 32,
+                  size: iconSize,
                 ),
-                title: Text(notification['title'], style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                subtitle: Text(notification['message']),
-                trailing: Text(notification['date'], style: TextStyle(color: Colors.black)),
+                title: Text(notification['title'], style: TextStyle(fontSize: titleFont, fontWeight: FontWeight.bold)),
+                subtitle: Text(notification['message'], style: TextStyle(fontSize: subtitleFont)),
+                trailing: Text(notification['date'], style: TextStyle(color: Colors.black, fontSize: subtitleFont)),
               ),
             );
           },

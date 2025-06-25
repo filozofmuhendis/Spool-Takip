@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:spool/parts/spool_detailing.dart';
+import 'package:spool/parts/responsive_helper.dart';
 
 class ProjectsPage extends StatefulWidget {
   @override
@@ -16,27 +17,36 @@ class _ProjectsPageState extends State<ProjectsPage> {
 
   @override
   Widget build(BuildContext context) {
+    double padding = ResponsiveHelper.getResponsiveWidth(context, 16);
+    double cardRadius = ResponsiveHelper.getResponsiveWidth(context, 15);
+    double titleFont = ResponsiveHelper.getResponsiveFontSize(context, 18);
+    double subtitleFont = ResponsiveHelper.getResponsiveFontSize(context, 14);
+    double iconSize = ResponsiveHelper.getResponsiveWidth(context, 24);
+    double appBarFont = ResponsiveHelper.getResponsiveFontSize(context, 20);
+    double buttonFont = ResponsiveHelper.getResponsiveFontSize(context, 16);
+    double buttonPadding = ResponsiveHelper.getResponsiveHeight(context, 16);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text("Projelerim"),
+        title: Text("Projelerim", style: TextStyle(fontSize: appBarFont)),
         backgroundColor: Color(0xFF186bfd),
       ),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(padding),
         child: ListView.builder(
           itemCount: projects.length,
           itemBuilder: (context, index) {
             final project = projects[index];
             return Card(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(cardRadius),
               ),
               elevation: 5,
-              margin: EdgeInsets.only(bottom: 16),
+              margin: EdgeInsets.only(bottom: padding),
               child: ListTile(
-                title: Text(project['name']!, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                subtitle: Text("Durum: ${project['status']}\nTarih: ${project['date']}"),
-                trailing: Icon(Icons.arrow_forward_ios, color: Color(0xFF186bfd)),
+                title: Text(project['name']!, style: TextStyle(fontSize: titleFont, fontWeight: FontWeight.bold)),
+                subtitle: Text("Durum: ${project['status']}\nTarih: ${project['date']}", style: TextStyle(fontSize: subtitleFont)),
+                trailing: Icon(Icons.arrow_forward_ios, color: Color(0xFF186bfd), size: iconSize),
                 onTap: () {
                   Navigator.push(
                     context,

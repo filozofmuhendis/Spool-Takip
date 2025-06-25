@@ -3,7 +3,6 @@ import 'package:spool/about.dart';
 import 'package:spool/parts/error_page.dart';
 import 'package:spool/parts/job_order.dart';
 import 'package:spool/parts/job_order_list.dart';
-import 'package:spool/parts/job_order_tracking.dart';
 import 'package:spool/parts/notification.dart';
 import 'package:spool/parts/login.dart';
 import 'package:spool/parts/projects.dart';
@@ -12,78 +11,99 @@ import 'package:spool/parts/settings.dart';
 import 'package:spool/parts/spool_tracking.dart';
 import 'package:spool/parts/transaction_history.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:spool/parts/responsive_helper.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
   await Supabase.initialize(
-    url: 'https://YOUR-PROJECT.supabase.co',
-    anonKey: 'YOUR-ANON-KEY',
+    url: 'https://zuyoysplupojazsaqejh.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1eW95c3BsdXBvamF6c2FxZWpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3NTYxOTUsImV4cCI6MjA2MzMzMjE5NX0.C8HQ_VieaIr9dqIWMWThZYXJ_MgKDp6xsUix4u94w7o',
   );
 
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    initialRoute: '/',
-    routes: {
-      '/': (_) => CustomLoginPage(),
-      '/home': (_) => JobOrderListPage(workerId: 'örnek-id'),
-      '/error': (context) {
-        final args = ModalRoute.of(context)!.settings.arguments as String;
-        return ErrorPage(message: args);
-      },
-    },
-  ));
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      //initialRoute: '/',
-      //routes: {
-      //  '/home': (context) => HomePage(),
-      //  '/projects': (context) => ProjectsPage(),
-      //  '/error': (context) {
-      //    final args = ModalRoute.of(context)!.settings.arguments as String;
-      //    return ErrorPage(message: args);
-      //  },
-      //},
+      title: 'Spool Takip Sistemi',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Color(0xFF186bfd)),
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      home: CustomLoginPage(),//HomePage(),
+      initialRoute: '/',
+      routes: {
+        '/': (_) => CustomLoginPage(),
+        '/home': (_) => HomePage(),
+        '/error': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as String;
+          return ErrorPage(message: args);
+        },
+      },
     );
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  String? currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentUser();
+  }
+
+  void _getCurrentUser() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      setState(() {
+        currentUserId = user.id;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
-    double gridSpacing = screenWidth > 600 ? 20 : 10; // Responsive spacing
+    double gridSpacing = ResponsiveHelper.getResponsiveWidth(context, screenWidth > 600 ? 20 : 10);
+    int crossAxisCount = screenWidth > 900 ? 5 : screenWidth > 600 ? 4 : 2;
+    double cardIconSize = ResponsiveHelper.getResponsiveWidth(context, 40);
+    double cardFontSize = ResponsiveHelper.getResponsiveFontSize(context, 16);
+    double cardRadius = ResponsiveHelper.getResponsiveWidth(context, 12);
+    double padding = ResponsiveHelper.getResponsiveWidth(context, 16);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'AtölyeAkış',
-          style: TextStyle(fontSize: 20),
+          style: TextStyle(fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20), color: Colors.white),
         ),
-        backgroundColor: Colors.tealAccent,
+        backgroundColor: Color(0xFF186bfd),
         actions: [
           IconButton(
-            icon: Icon(Icons.notifications),
+            icon: Icon(Icons.notifications, color: Colors.white, size: cardIconSize),
             onPressed: () {
-              // Bildirimler açılır
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => NotificationsPage()),
+              );
             },
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            padding: EdgeInsets.symmetric(horizontal: ResponsiveHelper.getResponsiveWidth(context, 8)),
             child: CircleAvatar(
-              backgroundImage: AssetImage('assets/user.png'), // Profil fotoğrafı
+              backgroundImage: AssetImage('assets/user.png'),
+              radius: ResponsiveHelper.getResponsiveWidth(context, 18),
             ),
           ),
         ],
@@ -91,12 +111,22 @@ class HomePage extends StatelessWidget {
       drawer: Drawer(
         child: ListView(
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blueAccent),
+            DrawerHeader(
+              decoration: BoxDecoration(color: Color(0xFF186bfd)),
               child: Center(
-                child: Text(
-                  'Menü',
-                  style: TextStyle(color: Colors.white, fontSize: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: ResponsiveHelper.getResponsiveWidth(context, 40),
+                      backgroundImage: AssetImage('assets/user.png'),
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+                    Text(
+                      'AtölyeAkış',
+                      style: TextStyle(color: Colors.white, fontSize: ResponsiveHelper.getResponsiveFontSize(context, 24), fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -120,7 +150,7 @@ class HomePage extends StatelessWidget {
                 );
               },
             ),
-            //Divider(),
+            Divider(),
             ListTile(
               leading: Icon(Icons.logout, color: Colors.red),
               title: Text('Çıkış Yap', style: TextStyle(color: Colors.red)),
@@ -132,30 +162,30 @@ class HomePage extends StatelessWidget {
         ),
       ),
       body: Padding(
-        padding: EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(padding),
         child: GridView.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: screenWidth > 600 ? 4 : 2, // Tablet ve telefon için
+            crossAxisCount: crossAxisCount,
             crossAxisSpacing: gridSpacing,
             mainAxisSpacing: gridSpacing,
-            childAspectRatio: 1.0, // Kare şeklinde kartlar
+            childAspectRatio: 1.0,
           ),
-          itemCount: 7, // Bölüm sayısı
+          itemCount: 7,
           itemBuilder: (context, index) {
             final sections = [
               {'title': 'Projeler', 'icon': Icons.fact_check_outlined, 'path': ProjectsPage()},
               {'title': 'Üretim İşlemleri', 'icon': Icons.track_changes, 'path': SpoolTrackingPage()},
               {'title': 'İşlem Geçmişi', 'icon': Icons.business, 'path': TransactionHistoryPage()},
               {'title': 'İş Emri Oluştur', 'icon': Icons.account_tree_sharp, 'path': JobOrderPage()},
-              {'title': 'İş Emri Uygula', 'icon': Icons.check_box, 'path': JobOrderListPage(workerId: 'sdvsdv',)},
+              {'title': 'İş Emri Uygula', 'icon': Icons.check_box, 'path': JobOrderListPage(workerId: currentUserId ?? 'default')},
               {'title': 'Raporlar', 'icon': Icons.assignment_return, 'path': ReportsPerformancePage()},
               {'title': 'Bildirimler', 'icon': Icons.notification_important, 'path': NotificationsPage()},
             ];
 
-            return Card( 
+            return Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(cardRadius),
               ),
               child: InkWell(
                 onTap: () {
@@ -169,14 +199,14 @@ class HomePage extends StatelessWidget {
                   children: [
                     Icon(
                       sections[index]['icon'] as IconData?,
-                      size: 40,
-                      color: Colors.blueAccent,
+                      size: cardIconSize,
+                      color: Color(0xFF186bfd),
                     ),
-                    SizedBox(height: 10),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
                     Text(
                       sections[index]['title'] as String,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: cardFontSize, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),

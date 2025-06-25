@@ -126,30 +126,64 @@ class _SpoolEntryTrackingPageState extends State<SpoolEntryTrackingPage> {
   }
 }
 
-class BarcodeScannerPage extends StatelessWidget {
+class BarcodeScannerPage extends StatefulWidget {
+  @override
+  _BarcodeScannerPageState createState() => _BarcodeScannerPageState();
+}
+
+class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
+  String? scannedCode;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text("Barkod Tarayıcı"),
         backgroundColor: Color(0xFF186bfd),
+        foregroundColor: Colors.white,
       ),
-      body: MobileScanner(
-        onDetect: (BarcodeCapture barcodeCapture) {
-          final List<Barcode> barcodes = barcodeCapture.barcodes;
-          for (final barcode in barcodes) {
-            final code = barcode.rawValue;
-            if (code != null) {
-              print('Barkod: $code');
-            }
-          }
-        },
+      body: Column(
+        children: [
+          Expanded(
+            child: MobileScanner(
+              onDetect: (BarcodeCapture barcodeCapture) {
+                final List<Barcode> barcodes = barcodeCapture.barcodes;
+                for (final barcode in barcodes) {
+                  final code = barcode.rawValue;
+                  if (code != null) {
+                    setState(() {
+                      scannedCode = code;
+                    });
+                    // Tarama sonucunu geri döndür
+                    Navigator.pop(context, code);
+                    return;
+                  }
+                }
+              },
+            ),
+          ),
+          if (scannedCode != null)
+            Container(
+              padding: EdgeInsets.all(16),
+              color: Colors.green.shade50,
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Barkod okundu: $scannedCode',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
 }
-
-
 
 class SpoolTrackingPage extends StatefulWidget {
   @override
@@ -194,25 +228,18 @@ class _SpoolTrackingPageState extends State<SpoolTrackingPage> {
   }
 
   Future<void> scanBarcode() async {
-    Navigator.push(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text("Barkod Tarayıcı")),
-          body: MobileScanner(
-            onDetect: (BarcodeCapture barcodeCapture) {
-              final List<Barcode> barcodes = barcodeCapture.barcodes;
-              for (final barcode in barcodes) {
-                final code = barcode.rawValue;
-                if (code != null) {
-                  print('Barkod: $code');
-                }
-              }
-            },
-          ),
-        ),
+        builder: (context) => BarcodeScannerPage(),
       ),
     );
+    
+    if (result != null) {
+      setState(() {
+        _barcodeController.text = result;
+      });
+    }
   }
 
   @override
