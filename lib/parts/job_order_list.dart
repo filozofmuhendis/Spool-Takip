@@ -15,6 +15,8 @@ class JobOrderListPage extends StatefulWidget {
 class _JobOrderListPageState extends State<JobOrderListPage> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> jobOrders = [];
+  bool loading = true;
+  String? errorMessage;
 
   @override
   void initState() {
@@ -23,16 +25,27 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
   }
 
   Future<void> fetchJobOrders() async {
-    final result = await supabase
-        .from('job_orders')
-        .select()
-        .eq('assigned_worker_id', widget.workerId)
-        .neq('status', 'tamamlandı')
-        .order('created_at');
-
     setState(() {
-      jobOrders = List<Map<String, dynamic>>.from(result);
+      loading = true;
+      errorMessage = null;
     });
+    try {
+      final result = await supabase
+          .from('job_orders')
+          .select()
+          .eq('assigned_worker_id', widget.workerId)
+          .neq('status', 'tamamlandı')
+          .order('created_at');
+      setState(() {
+        jobOrders = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'İş emirleri yüklenirken hata oluştu:\n${e.toString()}';
+        loading = false;
+      });
+    }
   }
 
   @override
@@ -48,33 +61,42 @@ class _JobOrderListPageState extends State<JobOrderListPage> {
       appBar: AppBar(title: Text('Atanmış İş Emirleri', style: TextStyle(fontSize: appBarFont))),
       body: Padding(
         padding: EdgeInsets.all(padding),
-        child: ListView.builder(
-          itemCount: jobOrders.length,
-          itemBuilder: (context, index) {
-            final job = jobOrders[index];
-            return Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
-              child: ListTile(
-                title: Text(job['title'] ?? 'İsimsiz İş Emri', style: TextStyle(fontSize: titleFont, fontWeight: FontWeight.bold)),
-                subtitle: Text(job['description'] ?? '', style: TextStyle(fontSize: subtitleFont)),
-                trailing: ElevatedButton(
-                  child: Text('Detay', style: TextStyle(fontSize: buttonFont)),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => JobOrderTrackingPage(
-                          jobOrderId: job['id'],
-                          workerId: widget.workerId,
+        child: loading
+            ? Center(child: CircularProgressIndicator())
+            : errorMessage != null
+                ? Center(child: Text(errorMessage!, style: TextStyle(color: Colors.red, fontSize: titleFont)))
+                : jobOrders.isEmpty
+                    ? Center(child: Text('Hiç atanmış iş emriniz yok.', style: TextStyle(fontSize: titleFont)))
+                    : RefreshIndicator(
+                        onRefresh: fetchJobOrders,
+                        child: ListView.builder(
+                          itemCount: jobOrders.length,
+                          itemBuilder: (context, index) {
+                            final job = jobOrders[index];
+                            return Card(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(cardRadius)),
+                              child: ListTile(
+                                title: Text(job['title'] ?? 'İsimsiz İş Emri', style: TextStyle(fontSize: titleFont, fontWeight: FontWeight.bold)),
+                                subtitle: Text(job['description'] ?? '', style: TextStyle(fontSize: subtitleFont)),
+                                trailing: ElevatedButton(
+                                  child: Text('Detay', style: TextStyle(fontSize: buttonFont)),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => JobOrderTrackingPage(
+                                          jobOrderId: job['id'],
+                                          workerId: widget.workerId,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-            );
-          },
-        ),
       ),
     );
   }

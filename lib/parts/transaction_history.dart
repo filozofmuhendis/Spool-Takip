@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:spool/parts/responsive_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TransactionHistoryPage extends StatefulWidget {
   @override
@@ -6,49 +8,102 @@ class TransactionHistoryPage extends StatefulWidget {
 }
 
 class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
-  List<Map<String, dynamic>> transactions = [
-    {'spoolName': 'Spool A', 'date': '08/05/2025', 'status': 'Tamamlandı', 'weight': 120},
-    {'spoolName': 'Spool B', 'date': '07/05/2025', 'status': 'İşlemde', 'weight': 150},
-    {'spoolName': 'Spool C', 'date': '06/05/2025', 'status': 'Sevkiyata Hazır', 'weight': 200},
-    {'spoolName': 'Spool D', 'date': '05/05/2025', 'status': 'Beklemede', 'weight': 100},
-    {'spoolName': 'Spool E', 'date': '04/05/2025', 'status': 'Tamamlandı', 'weight': 180},
-  ];
+  List<Map<String, dynamic>> transactions = [];
+  bool loading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchTransactions();
+  }
+
+  Future<void> fetchTransactions() async {
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          errorMessage = 'Kullanıcı oturumu bulunamadı.';
+          loading = false;
+        });
+        return;
+      }
+      final result = await Supabase.instance.client
+          .from('transactions')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+      setState(() {
+        transactions = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'İşlem geçmişi yüklenirken hata oluştu:\n${e.toString()}';
+        loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    double padding = ResponsiveHelper.getResponsiveWidth(context, 16);
+    double cardRadius = ResponsiveHelper.getResponsiveWidth(context, 15);
+    double titleFont = ResponsiveHelper.getResponsiveFontSize(context, 18);
+    double subtitleFont = ResponsiveHelper.getResponsiveFontSize(context, 14);
+    double buttonFont = ResponsiveHelper.getResponsiveFontSize(context, 16);
+    double buttonPadding = ResponsiveHelper.getResponsiveHeight(context, 16);
+    double appBarFont = ResponsiveHelper.getResponsiveFontSize(context, 20);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text("İşlem Geçmişi"),
+        title: Text("İşlem Geçmişi", style: TextStyle(fontSize: appBarFont)),
         backgroundColor: Color(0xFF186bfd),
       ),
       body: Padding(
-        padding: EdgeInsets.all(16),
-        child: ListView.builder(
-          itemCount: transactions.length,
-          itemBuilder: (context, index) {
-            final transaction = transactions[index];
-            return Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              elevation: 5,
-              margin: EdgeInsets.only(bottom: 16),
-              child: ListTile(
-                title: Text(transaction['spoolName'], style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                subtitle: Text("Tarih: ${transaction['date']}\nDurum: ${transaction['status']}\nAğırlık: ${transaction['weight']} kg"),
-                trailing: Icon(Icons.arrow_forward_ios, color: Color(0xFF186bfd)),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TransactionDetailsPage(transaction: transaction),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        ),
+        padding: EdgeInsets.all(padding),
+        child: loading
+            ? Center(child: CircularProgressIndicator())
+            : errorMessage != null
+                ? Center(child: Text(errorMessage!, style: TextStyle(color: Colors.red, fontSize: titleFont)))
+                : transactions.isEmpty
+                    ? Center(child: Text('Hiç işlem geçmişiniz yok.', style: TextStyle(fontSize: titleFont)))
+                    : RefreshIndicator(
+                        onRefresh: fetchTransactions,
+                        child: ListView.builder(
+                          itemCount: transactions.length,
+                          itemBuilder: (context, index) {
+                            final transaction = transactions[index];
+                            return Card(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(cardRadius),
+                              ),
+                              elevation: 5,
+                              margin: EdgeInsets.only(bottom: padding),
+                              child: ListTile(
+                                title: Text(transaction['spoolName'] ?? '-', style: TextStyle(fontSize: titleFont, fontWeight: FontWeight.bold)),
+                                subtitle: Text(
+                                  "Tarih: ${transaction['created_at']?.toString().substring(0, 10) ?? '-'}\nDurum: ${transaction['status'] ?? '-'}\nAğırlık: ${transaction['weight'] ?? '-'} kg",
+                                  style: TextStyle(fontSize: subtitleFont),
+                                ),
+                                trailing: Icon(Icons.arrow_forward_ios, color: Color(0xFF186bfd), size: ResponsiveHelper.getResponsiveWidth(context, 20)),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => TransactionDetailsPage(transaction: transaction),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
       ),
     );
   }
@@ -63,7 +118,7 @@ class TransactionDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(transaction['spoolName']),
+        title: Text(transaction['spoolName'] ?? '-'),
         backgroundColor: Color(0xFF186bfd),
       ),
       body: Padding(
@@ -73,10 +128,10 @@ class TransactionDetailsPage extends StatelessWidget {
           children: [
             Text("İşlem Detayları", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             SizedBox(height: 16),
-            Text("Spool Adı: ${transaction['spoolName']}"),
-            Text("Durum: ${transaction['status']}"),
-            Text("Tarih: ${transaction['date']}"),
-            Text("Ağırlık: ${transaction['weight']} kg"),
+            Text("Spool Adı: ${transaction['spoolName'] ?? '-'}"),
+            Text("Durum: ${transaction['status'] ?? '-'}"),
+            Text("Tarih: ${transaction['created_at']?.toString().substring(0, 10) ?? '-'}"),
+            Text("Ağırlık: ${transaction['weight'] ?? '-'} kg"),
             SizedBox(height: 32),
             ElevatedButton(
               onPressed: () {},

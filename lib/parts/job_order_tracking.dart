@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'error_page.dart';
+
 class JobOrderTrackingPage extends StatefulWidget {
   final String jobOrderId;
   final String workerId;
@@ -26,12 +28,34 @@ class _JobOrderTrackingPageState extends State<JobOrderTrackingPage> {
   Duration elapsed = Duration.zero;
 
   List<Map<String, dynamic>> jobHistory = [];
+  bool loading = true;
+  String? errorMessage;
 
   @override
   void initState() {
     super.initState();
-    loadExistingJob();
-    loadJobHistory();
+    loadAll();
+  }
+
+  Future<void> loadAll() async {
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      await Future.wait([
+        loadExistingJob(),
+        loadJobHistory(),
+      ]);
+      setState(() {
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'İş emri takibi yüklenirken hata oluştu:\n${e.toString()}';
+        loading = false;
+      });
+    }
   }
 
   Future<void> loadExistingJob() async {
@@ -94,6 +118,7 @@ class _JobOrderTrackingPageState extends State<JobOrderTrackingPage> {
     setState(() {
       isAccepted = true;
     });
+    await loadJobHistory();
   }
 
   Future<void> finishJob() async {
@@ -115,6 +140,7 @@ class _JobOrderTrackingPageState extends State<JobOrderTrackingPage> {
     setState(() {
       isFinished = true;
     });
+    await loadJobHistory();
   }
 
   @override
@@ -131,49 +157,57 @@ class _JobOrderTrackingPageState extends State<JobOrderTrackingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('İş Emri Süre Takibi')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('İş Emri ID: ${widget.jobOrderId}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              if (acceptedTime != null)
-                Text('Kabul Zamanı: $acceptedTime'),
-              if (finishedTime != null)
-                Text('Bitiş Zamanı: $finishedTime'),
-              const SizedBox(height: 10),
-              if (isAccepted && !isFinished)
-                Text('Geçen Süre: ${formatDuration(elapsed)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: isAccepted ? null : acceptJob,
-                child: const Text('İşi Kabul Et'),
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: (!isAccepted || isFinished) ? null : finishJob,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                child: const Text('İşi Bitir'),
-              ),
-              const Divider(height: 30),
-              const Text('Önceki İş Emri Geçmişi:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              ...jobHistory.map((job) {
-                final accepted = job['accepted_at'] != null ? DateTime.parse(job['accepted_at']).toLocal().toString() : '-';
-                final duration = job['duration_minutes'] ?? 0;
-                final status = job['status'];
-                return ListTile(
-                  title: Text('İş Emri: ${job['job_order_id']}'),
-                  subtitle: Text('Durum: $status\nKabul: $accepted\nSüre: $duration dk'),
-                  dense: true,
-                );
-              }).toList(),
-            ],
-          ),
-        ),
-      ),
+      body: loading
+          ? Center(child: CircularProgressIndicator())
+          : errorMessage != null
+              ? ErrorPage(
+                  message: errorMessage!,
+                  errorType: ErrorType.data,
+                  onRetry: loadAll,
+                )
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('İş Emri ID: ${widget.jobOrderId}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 10),
+                        if (acceptedTime != null)
+                          Text('Kabul Zamanı: $acceptedTime'),
+                        if (finishedTime != null)
+                          Text('Bitiş Zamanı: $finishedTime'),
+                        const SizedBox(height: 10),
+                        if (isAccepted && !isFinished)
+                          Text('Geçen Süre: ${formatDuration(elapsed)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: isAccepted ? null : acceptJob,
+                          child: const Text('İşi Kabul Et'),
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: (!isAccepted || isFinished) ? null : finishJob,
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                          child: const Text('İşi Bitir'),
+                        ),
+                        const Divider(height: 30),
+                        const Text('Önceki İş Emri Geçmişi:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 10),
+                        ...jobHistory.map((job) {
+                          final accepted = job['accepted_at'] != null ? DateTime.parse(job['accepted_at']).toLocal().toString() : '-';
+                          final duration = job['duration_minutes'] ?? 0;
+                          final status = job['status'];
+                          return ListTile(
+                            title: Text('İş Emri: ${job['job_order_id']}'),
+                            subtitle: Text('Durum: $status\nKabul: $accepted\nSüre: $duration dk'),
+                            dense: true,
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ),
     );
   }
 }

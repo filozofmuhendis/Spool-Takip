@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:spool/parts/responsive_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ReportsPerformancePage extends StatefulWidget {
   @override
@@ -8,12 +9,46 @@ class ReportsPerformancePage extends StatefulWidget {
 }
 
 class _ReportsPerformancePageState extends State<ReportsPerformancePage> {
-  final List<Map<String, dynamic>> performanceData = [
-    {'name': 'Galata Tersanesi', 'completed': 50, 'inProgress': 30, 'pending': 20},
-    {'name': 'Haliç Tersanesi', 'completed': 70, 'inProgress': 20, 'pending': 10},
-    {'name': 'Yalova Tersanesi', 'completed': 40, 'inProgress': 40, 'pending': 20},
-    {'name': 'Sedef Tersanesi', 'completed': 90, 'inProgress': 5, 'pending': 5},
-  ];
+  List<Map<String, dynamic>> performanceData = [];
+  bool loading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchPerformanceData();
+  }
+
+  Future<void> fetchPerformanceData() async {
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          errorMessage = 'Kullanıcı oturumu bulunamadı.';
+          loading = false;
+        });
+        return;
+      }
+      final result = await Supabase.instance.client
+          .from('performance_reports')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+      setState(() {
+        performanceData = List<Map<String, dynamic>>.from(result);
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Performans verileri yüklenirken hata oluştu:\n${e.toString()}';
+        loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,76 +67,78 @@ class _ReportsPerformancePageState extends State<ReportsPerformancePage> {
       ),
       body: Padding(
         padding: EdgeInsets.all(padding),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Üretim Performansı",
-                style: TextStyle(fontSize: titleFont, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-              AspectRatio(
-                aspectRatio: chartAspect,
-                child: BarChart(
-                  BarChartData(
-                    barGroups: _createBarData(),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (double value, TitleMeta meta) {
-                            final style = TextStyle(fontWeight: FontWeight.bold, fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12));
-                            switch (value.toInt()) {
-                              case 0:
-                                return Text('Galata', style: style);
-                              case 1:
-                                return Text('Haliç', style: style);
-                              case 2:
-                                return Text('Yalova', style: style);
-                              case 3:
-                                return Text('Sedef', style: style);
-                            }
-                            return Text('');
-                          },
+        child: loading
+            ? Center(child: CircularProgressIndicator())
+            : errorMessage != null
+                ? Center(child: Text(errorMessage!, style: TextStyle(color: Colors.red, fontSize: sectionFont)))
+                : performanceData.isEmpty
+                    ? Center(child: Text('Hiç performans verisi yok.', style: TextStyle(fontSize: sectionFont)))
+                    : RefreshIndicator(
+                        onRefresh: fetchPerformanceData,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Üretim Performansı",
+                                style: TextStyle(fontSize: titleFont, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                              AspectRatio(
+                                aspectRatio: chartAspect,
+                                child: BarChart(
+                                  BarChartData(
+                                    barGroups: _createBarData(),
+                                    titlesData: FlTitlesData(
+                                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
+                                      bottomTitles: AxisTitles(
+                                        sideTitles: SideTitles(
+                                          showTitles: true,
+                                          getTitlesWidget: (double value, TitleMeta meta) {
+                                            final style = TextStyle(fontWeight: FontWeight.bold, fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12));
+                                            if (value.toInt() < performanceData.length) {
+                                              return Text(performanceData[value.toInt()]['name'] ?? '', style: style);
+                                            }
+                                            return Text('');
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 32)),
+                              Text(
+                                "Tamamlanma Oranı",
+                                style: TextStyle(fontSize: sectionFont, fontWeight: FontWeight.bold),
+                              ),
+                              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                              AspectRatio(
+                                aspectRatio: pieAspect,
+                                child: PieChart(
+                                  PieChartData(
+                                    sections: _createPieData(),
+                                    centerSpaceRadius: 40,
+                                    sectionsSpace: 4,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 32)),
+                              ElevatedButton(
+                                onPressed: () {},
+                                child: Text("PDF Olarak İndir", style: TextStyle(fontSize: buttonFont)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color(0xFF186bfd),
+                                  padding: EdgeInsets.symmetric(vertical: buttonPadding),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 32)),
-              Text(
-                "Tamamlanma Oranı",
-                style: TextStyle(fontSize: sectionFont, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-              AspectRatio(
-                aspectRatio: pieAspect,
-                child: PieChart(
-                  PieChartData(
-                    sections: _createPieData(),
-                    centerSpaceRadius: 40,
-                    sectionsSpace: 4,
-                  ),
-                ),
-              ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 32)),
-              ElevatedButton(
-                onPressed: () {},
-                child: Text("PDF Olarak İndir", style: TextStyle(fontSize: buttonFont)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF186bfd),
-                  padding: EdgeInsets.symmetric(vertical: buttonPadding),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -112,20 +149,19 @@ class _ReportsPerformancePageState extends State<ReportsPerformancePage> {
       return BarChartGroupData(
         x: index,
         barRods: [
-          BarChartRodData(toY: data['completed'].toDouble(), color: Colors.blue, width: 16),
-          BarChartRodData(toY: data['inProgress'].toDouble(), color: Colors.yellow, width: 16),
-          BarChartRodData(toY: data['pending'].toDouble(), color: Colors.red, width: 16),
+          BarChartRodData(toY: (data['completed'] ?? 0).toDouble(), color: Colors.blue, width: 16),
+          BarChartRodData(toY: (data['inProgress'] ?? 0).toDouble(), color: Colors.yellow, width: 16),
+          BarChartRodData(toY: (data['pending'] ?? 0).toDouble(), color: Colors.red, width: 16),
         ],
       );
     });
   }
 
   List<PieChartSectionData> _createPieData() {
-    final completed = performanceData.fold<int>(0, (sum, item) => sum + (item['completed'] as int));
-    final inProgress = performanceData.fold<int>(0, (sum, item) => sum + (item['inProgress'] as int));
-    final pending = performanceData.fold<int>(0, (sum, item) => sum + (item['pending'] as int));
+    final completed = performanceData.fold<int>(0,(sum, item) => sum + (item['completed'] as int? ?? 0),);
+    final inProgress = performanceData.fold<int>(0, (sum, item) => sum + (item['inProgress'] as int? ?? 0),);
+    final pending = performanceData.fold<int>(0, (sum, item) => sum + (item['pending'] as int? ?? 0),);
 
-    final total = completed + inProgress + pending;
     return [
       PieChartSectionData(value: completed.toDouble(), title: 'Tamamlandı', color: Colors.blue, radius: 50),
       PieChartSectionData(value: inProgress.toDouble(), title: 'İşlemde', color: Colors.yellow, radius: 50),

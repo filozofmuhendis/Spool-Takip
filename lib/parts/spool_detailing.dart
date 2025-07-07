@@ -1,118 +1,165 @@
 import 'package:flutter/material.dart';
+import 'package:spool/parts/responsive_helper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class SpoolDetailPage extends StatelessWidget {
+class SpoolDetailPage extends StatefulWidget {
   final Map<String, dynamic> spoolData;
 
   SpoolDetailPage({required this.spoolData});
 
   @override
+  _SpoolDetailPageState createState() => _SpoolDetailPageState();
+}
+
+class _SpoolDetailPageState extends State<SpoolDetailPage> {
+  List<Map<String, dynamic>> history = [];
+  List<dynamic> documents = [];
+  bool loading = true;
+  String? errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchSpoolDetails();
+  }
+
+  Future<void> fetchSpoolDetails() async {
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      final result = await Supabase.instance.client
+          .from('spool_history')
+          .select()
+          .eq('spool_number', widget.spoolData['spoolNumber'] ?? widget.spoolData['spool_number']);
+      final docResult = await Supabase.instance.client
+          .from('spool_documents')
+          .select()
+          .eq('spool_number', widget.spoolData['spoolNumber'] ?? widget.spoolData['spool_number']);
+      setState(() {
+        history = List<Map<String, dynamic>>.from(result);
+        documents = docResult;
+        loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Spool detayları yüklenirken hata oluştu:\n${e.toString()}';
+        loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> history = spoolData['history'] ?? [];
+    double padding = ResponsiveHelper.getResponsiveWidth(context, 16);
+    double sectionFont = ResponsiveHelper.getResponsiveFontSize(context, 20);
+    double labelFont = ResponsiveHelper.getResponsiveFontSize(context, 16);
+    double iconSize = ResponsiveHelper.getResponsiveWidth(context, 24);
+
+    final spool = widget.spoolData;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Spool Detayı"),
+        title: Text("Spool Detayı", style: TextStyle(fontSize: sectionFont)),
         backgroundColor: Color(0xFF186bfd),
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Spool Bilgileri
-            _sectionTitle("Spool Bilgileri"),
-            _infoTile("Spool No", spoolData['spoolNumber']),
-            _infoTile("Malzeme", spoolData['material']),
-            _infoTile("Çap", spoolData['diameter']),
-            _infoTile("Ağırlık", spoolData['weight']),
-            _infoTile("Barkod", spoolData['barcode']),
-            SizedBox(height: 16),
-
-            // İşlem Geçmişi
-            _sectionTitle("İşlem Geçmişi"),
-            if (history.isEmpty)
-              Text("Herhangi bir işlem kaydı yok."),
-            ...history.map((entry) {
-              return ListTile(
-                leading: Icon(Icons.build),
-                title: Text(entry['type']),
-                subtitle: Text("${entry['date']} • ${entry['person']}"),
-              );
-            }),
-
-            SizedBox(height: 24),
-
-            // Belgeler / Fotoğraflar
-            _sectionTitle("Fotoğraflar & Belgeler"),
-            spoolData['documents'] != null
-                ? Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(spoolData['documents'].length, (index) {
-                final doc = spoolData['documents'][index];
-                return Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    border: Border.all(),
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(
-                      image: FileImage(doc),
-                      fit: BoxFit.cover,
+      body: loading
+          ? Center(child: CircularProgressIndicator())
+          : errorMessage != null
+              ? Center(child: Text(errorMessage!, style: TextStyle(color: Colors.red, fontSize: labelFont)))
+              : RefreshIndicator(
+                  onRefresh: fetchSpoolDetails,
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(padding),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionTitle("Spool Bilgileri", sectionFont),
+                        _infoTile("Spool No", spool['spoolNumber'] ?? spool['spool_number'] ?? "-", labelFont),
+                        _infoTile("Malzeme", spool['material'] ?? "-", labelFont),
+                        _infoTile("Çap", spool['diameter'] ?? "-", labelFont),
+                        _infoTile("Ağırlık", spool['weight'] ?? "-", labelFont),
+                        _infoTile("Barkod", spool['barcode'] ?? "-", labelFont),
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                        _sectionTitle("İşlem Geçmişi", sectionFont),
+                        if (history.isEmpty)
+                          Text("Herhangi bir işlem kaydı yok.", style: TextStyle(fontSize: labelFont)),
+                        ...history.map((entry) {
+                          return ListTile(
+                            leading: Icon(Icons.build, size: iconSize),
+                            title: Text(entry['type'] ?? '-', style: TextStyle(fontSize: labelFont)),
+                            subtitle: Text("${entry['date']?.toString().substring(0, 10) ?? '-'} • ${entry['person'] ?? '-'}", style: TextStyle(fontSize: labelFont)),
+                          );
+                        }),
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
+                        _sectionTitle("Fotoğraflar & Belgeler", sectionFont),
+                        documents.isNotEmpty
+                            ? Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: List.generate(documents.length, (index) {
+                                  final doc = documents[index];
+                                  return Container(
+                                    width: ResponsiveHelper.getResponsiveWidth(context, 100),
+                                    height: ResponsiveHelper.getResponsiveWidth(context, 100),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(),
+                                      borderRadius: BorderRadius.circular(8),
+                                      image: doc['url'] != null
+                                          ? DecorationImage(
+                                              image: NetworkImage(doc['url']),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : null,
+                                    ),
+                                    child: doc['url'] == null
+                                        ? Center(child: Icon(Icons.insert_drive_file, size: iconSize))
+                                        : null,
+                                  );
+                                }),
+                              )
+                            : Text("Yüklü belge bulunmamaktadır.", style: TextStyle(fontSize: labelFont)),
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
+                        _sectionTitle("Proje Klasörü", sectionFont),
+                        TextButton.icon(
+                          onPressed: () {},
+                          icon: Icon(Icons.folder, size: iconSize),
+                          label: Text("Klasöre Git", style: TextStyle(fontSize: labelFont)),
+                        ),
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
+                        _sectionTitle("İş Yükü Değerlendirme (Opsiyonel)", sectionFont),
+                        _infoTile("Ek Sayısı", spool['ek'] ?? "-", labelFont),
+                        _infoTile("Flanş Sayısı", spool['flans'] ?? "-", labelFont),
+                        _infoTile("Manşon", spool['manson'] ?? "-", labelFont),
+                        _infoTile("Kaynak Inch", spool['inch'] ?? "-", labelFont),
+                        _infoTile("Kaynak Türü", spool['type'] ?? "-", labelFont),
+                        _infoTile("Not", spool['note'] ?? "-", labelFont),
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 40)),
+                      ],
                     ),
                   ),
-                );
-              }),
-            )
-                : Text("Yüklü belge bulunmamaktadır."),
-
-            SizedBox(height: 24),
-
-            // Proje Klasörü Bağlantısı
-            _sectionTitle("Proje Klasörü"),
-            TextButton.icon(
-              onPressed: () {
-                // TODO: Link açma işlemi
-              },
-              icon: Icon(Icons.folder),
-              label: Text("Klasöre Git"),
-            ),
-
-            SizedBox(height: 24),
-
-            // İş Yükü Değerlendirme (Opsiyonel)
-            _sectionTitle("İş Yükü Değerlendirme (Opsiyonel)"),
-            _infoTile("Ek Sayısı", spoolData['ek'] ?? "-"),
-            _infoTile("Flanş Sayısı", spoolData['flans'] ?? "-"),
-            _infoTile("Manşon", spoolData['manson'] ?? "-"),
-            _infoTile("Kaynak Inch", spoolData['inch'] ?? "-"),
-            _infoTile("Kaynak Türü", spoolData['type'] ?? "-"),
-            _infoTile("Not", spoolData['note'] ?? "-"),
-
-            SizedBox(height: 40),
-          ],
-        ),
-      ),
+                ),
     );
   }
 
-  Widget _sectionTitle(String title) {
+  Widget _sectionTitle(String title, double fontSize) {
     return Padding(
       padding: EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  Widget _infoTile(String label, String value) {
+  Widget _infoTile(String label, String value, double fontSize) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(flex: 2, child: Text("$label:", style: TextStyle(fontWeight: FontWeight.w500))),
-          Expanded(flex: 3, child: Text(value)),
+          Expanded(flex: 2, child: Text("$label:", style: TextStyle(fontWeight: FontWeight.w500, fontSize: fontSize))),
+          Expanded(flex: 3, child: Text(value, style: TextStyle(fontSize: fontSize))),
         ],
       ),
     );
